@@ -10,15 +10,15 @@ Version: 1.0
 // Create the plugin settings page
 function custom_login_plugin_settings_page()
 {
-    add_menu_page(
-        'Custom Login Plugin Settings', // Page title
-        'Custom Login Plugin Settings', // Menu title
-        'manage_options', // Capability required to access the page
-        'custom-login-plugin', // Menu slug
-        'custom_login_plugin_settings_page_content', // Callback function to render the page content
-        'dashicons-admin-generic', // Icon
-        99 // Position in the menu
-    );
+	add_menu_page(
+		'Custom Login Plugin Settings', // Page title
+		'Custom Login Plugin Settings', // Menu title
+		'manage_options', // Capability required to access the page
+		'custom-login-plugin', // Menu slug
+		'custom_login_plugin_settings_page_content', // Callback function to render the page content
+		'dashicons-admin-generic', // Icon
+		99 // Position in the menu
+	);
 }
 add_action('admin_menu', 'custom_login_plugin_settings_page');
 
@@ -26,7 +26,7 @@ add_action('admin_menu', 'custom_login_plugin_settings_page');
 function custom_login_plugin_settings_page_content()
 {
 	// Retrieve the redirect URL value from the database
-	$redirect_url = ($_POST['redirect_url'] ?? get_option( 'custom_login_plugin_redirect_url' ));
+	$redirect_url = isset($_POST['redirect_url']) ? sanitize_text_field($_POST['redirect_url']) : get_option('custom_login_plugin_redirect_url');
 
 	// Retrieve the total failed attempts
 	$failed_attempts = get_option('custom_login_plugin_failed_attempts');
@@ -36,18 +36,25 @@ function custom_login_plugin_settings_page_content()
 
 	// Update the plugin settings
 	if (isset($_POST['custom_login_plugin_submit'])) {
-		// Save the redirect URL in the database
-		update_option('custom_login_plugin_redirect_url', sanitize_text_field($_POST['redirect_url']));
+		// Verify the nonce
+		if (isset($_POST['custom_login_plugin_nonce']) && wp_verify_nonce($_POST['custom_login_plugin_nonce'], 'custom_login_plugin_settings')) {
+			// Save the redirect URL in the database
+			update_option('custom_login_plugin_redirect_url', $redirect_url);
 
-		// Update the AJAX mode value
-		update_option('custom_login_plugin_ajax_enabled', isset($_POST['ajax_enabled']) ? '1' : '0');
+			// Update the AJAX mode value
+			update_option('custom_login_plugin_ajax_enabled', $ajax_enabled);
+		}
 	}
+
+	// Generate the nonce field
+	$nonce = wp_create_nonce('custom_login_plugin_settings');
 	?>
 
     <div class="wrap">
         <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
 
         <form method="post" action="">
+			<?php wp_nonce_field('custom_login_plugin_settings', 'custom_login_plugin_nonce'); ?>
             <table class="form-table">
                 <tr>
                     <th scope="row">Redirect URL</th>
@@ -83,8 +90,8 @@ function custom_login_plugin_login_redirect($redirect_to, $request, $user)
 
 	// Check if the user is an administrator and the redirect URL is not empty
 	if (is_a($user, 'WP_User') && !empty($redirect_url)) {
-		// Check if AJAX mode is enabled
-		if ($ajax_enabled == '1' && isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+		// Check if AJAX mode is enabled and verify the AJAX request nonce
+		if ($ajax_enabled == '1' && isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest' && isset($_REQUEST['custom_login_plugin_nonce']) && wp_verify_nonce($_REQUEST['custom_login_plugin_nonce'], 'custom_login_plugin_ajax')) {
 			// If AJAX request, return the redirect URL as JSON response
 			$response = array('redirect_url' => $redirect_url);
 			wp_send_json($response);
@@ -101,31 +108,31 @@ add_filter('login_redirect', 'custom_login_plugin_login_redirect', 10, 3);
 // Increment the failed login attempts counter
 function custom_login_plugin_failed_login_attempt($username)
 {
-    // Retrieve the current value of the failed attempts counter
-    $failed_attempts = get_option('custom_login_plugin_failed_attempts');
+	// Retrieve the current value of the failed attempts counter
+	$failed_attempts = get_option('custom_login_plugin_failed_attempts');
 
-    // Increment the counter
-    $failed_attempts++;
+	// Increment the counter
+	$failed_attempts++;
 
-    // Update the counter value in the database
-    update_option('custom_login_plugin_failed_attempts', $failed_attempts);
+	// Update the counter value in the database
+	update_option('custom_login_plugin_failed_attempts', $failed_attempts);
 }
 add_action('wp_login_failed', 'custom_login_plugin_failed_login_attempt');
 
 // Register the plugin options on activation
 function custom_login_plugin_activate()
 {
-    add_option('custom_login_plugin_redirect_url', '');
-    add_option('custom_login_plugin_failed_attempts', 0);
-    add_option('custom_login_plugin_ajax_enabled', '0');
+	add_option('custom_login_plugin_redirect_url', '');
+	add_option('custom_login_plugin_failed_attempts', 0);
+	add_option('custom_login_plugin_ajax_enabled', '0');
 }
 register_activation_hook(__FILE__, 'custom_login_plugin_activate');
 
 // Delete the plugin options on deactivation
 function custom_login_plugin_deactivate()
 {
-    delete_option('custom_login_plugin_redirect_url');
-    delete_option('custom_login_plugin_failed_attempts');
-    delete_option('custom_login_plugin_ajax_enabled');
+	delete_option('custom_login_plugin_redirect_url');
+	delete_option('custom_login_plugin_failed_attempts');
+	delete_option('custom_login_plugin_ajax_enabled');
 }
 register_deactivation_hook(__FILE__, 'custom_login_plugin_deactivate');
