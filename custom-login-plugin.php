@@ -7,6 +7,10 @@ Author URI: https://github.com/hermanzuiakov
 Version: 1.0
 */
 
+if(!defined('ABSPATH')) {
+    die('Do not open in file directory!');
+}
+
 // Create the plugin settings page
 function custom_login_plugin_settings_page()
 {
