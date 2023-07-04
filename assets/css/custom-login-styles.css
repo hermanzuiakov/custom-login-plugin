@@ -1,0 +1,44 @@
+body.login {
+    background: #627A9C;
+}
+
+#login {
+    padding: 20px 30px;
+    width: fit-content;
+    background: #fff;
+    margin-top: 40px;
+    border-radius: 25px;
+    -webkit-box-shadow: 0px 0px 27px 0px rgba(0,0,0,0.5);
+    box-shadow: 0px 0px 27px 0px rgba(0,0,0,0.5);
+}
+
+#loginform {
+    border: none;
+    box-shadow: none;
+}
+
+.login label {
+    font-style: italic;
+}
+
+.login form .input, .login input[type=text] {
+    border-radius: 15px;
+    font-size: 18px;
+    padding: 10px 10px;
+}
+
+.login .button-primary {
+    float: none;
+    display: block;
+    vertical-align: unset;
+    width: 100%;
+    padding: 10px;
+    margin-top: 40px;
+    border-radius: 90px;
+    font-size: 20px;
+    background: #44B281;
+}
+
+.login #nav {
+    margin-top: 0;
+}

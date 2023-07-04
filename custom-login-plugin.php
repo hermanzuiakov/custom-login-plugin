@@ -119,6 +119,12 @@ function custom_login_plugin_failed_login_attempt($username)
 }
 add_action('wp_login_failed', 'custom_login_plugin_failed_login_attempt');
 
+// Load styles to the login page
+function custom_login_plugin_load_styles() {
+	wp_enqueue_style( 'custom-login-styles', plugin_dir_url( __FILE__ ) . '/assets/css/custom-login-styles.css' );
+}
+add_action( 'login_enqueue_scripts', 'custom_login_plugin_load_styles' );
+
 // Register the plugin options on activation
 function custom_login_plugin_activate()
 {
