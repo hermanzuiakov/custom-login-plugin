@@ -8,7 +8,7 @@ Version: 1.0
 */
 
 if(!defined('ABSPATH')) {
-    die('Do not open in file directory!');
+	die('Do not open in file directory!');
 }
 
 // Create the plugin settings page
@@ -35,8 +35,12 @@ function custom_login_plugin_settings_page_content()
 	// Retrieve the total failed attempts
 	$failed_attempts = get_option('custom_login_plugin_failed_attempts');
 
+	$ajax_enabled = get_option('custom_login_plugin_ajax_enabled');
+
 	// Retrieve the AJAX mode value for the login form
-	$ajax_enabled = ((isset($_POST['ajax_enabled']) ? '1' : '0') ?? get_option('custom_login_plugin_ajax_enabled'));
+    if(isset($_POST['ajax_enabled'])) {
+	    $ajax_enabled = sanitize_text_field($_POST['ajax_enabled']);
+    }
 
 	// Update the plugin settings
 	if (isset($_POST['custom_login_plugin_submit'])) {
@@ -46,7 +50,7 @@ function custom_login_plugin_settings_page_content()
 			update_option('custom_login_plugin_redirect_url', $redirect_url);
 
 			// Update the AJAX mode value
-			update_option('custom_login_plugin_ajax_enabled', $ajax_enabled);
+			update_option('custom_login_plugin_ajax_enabled', isset($_POST['ajax_enabled']) ? '1' : '0');
 		}
 	}
 
@@ -70,7 +74,7 @@ function custom_login_plugin_settings_page_content()
                 </tr>
                 <tr>
                     <th scope="row">Enable AJAX Mode</th>
-                    <td><input type="checkbox" name="ajax_enabled" value="1" <?php checked($ajax_enabled, '1'); ?> /></td>
+                    <td><input type="checkbox" name="ajax_enabled" value="" <?php checked($ajax_enabled); ?> /></td>
                 </tr>
             </table>
 
@@ -95,10 +99,9 @@ function custom_login_plugin_login_redirect($redirect_to, $request, $user)
 	// Check if the user is an administrator and the redirect URL is not empty
 	if (is_a($user, 'WP_User') && !empty($redirect_url)) {
 		// Check if AJAX mode is enabled and verify the AJAX request nonce
-		if ($ajax_enabled == '1' && isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest' && isset($_REQUEST['custom_login_plugin_nonce']) && wp_verify_nonce($_REQUEST['custom_login_plugin_nonce'], 'custom_login_plugin_ajax')) {
-			// If AJAX request, return the redirect URL as JSON response
-			$response = array('redirect_url' => $redirect_url);
-			wp_send_json($response);
+		if ($ajax_enabled == '1' && !defined('DOING_AJAX')) {
+			// Redirect to the regular login page
+			return $redirect_to;
 		} else {
 			// Redirect to {field_value}
 			$redirect_to = $redirect_url;
@@ -123,11 +126,52 @@ function custom_login_plugin_failed_login_attempt($username)
 }
 add_action('wp_login_failed', 'custom_login_plugin_failed_login_attempt');
 
-// Load styles to the login page
-function custom_login_plugin_load_styles() {
+// Load styles and scripts to the login page
+function custom_login_plugin_load_styles_scripts() {
 	wp_enqueue_style( 'custom-login-styles', plugin_dir_url( __FILE__ ) . '/assets/css/custom-login-styles.css' );
+	wp_enqueue_script( 'custom-login-script', plugin_dir_url( __FILE__ ) . '/assets/js/custom-login-script.js', array('jquery') );
+	wp_localize_script( 'custom-login-script', 'custom_login_script_vars', array(
+		'ajax_url' => admin_url( 'admin-ajax.php' ),
+		'ajax_nonce' => wp_create_nonce( 'custom_login_plugin_ajax' )
+	) );
 }
-add_action( 'login_enqueue_scripts', 'custom_login_plugin_load_styles' );
+add_action( 'login_enqueue_scripts', 'custom_login_plugin_load_styles_scripts' );
+
+// Process AJAX login request
+function custom_login_plugin_ajax_login()
+{
+	// Verify the AJAX request nonce
+	if (isset($_POST['custom_login_plugin_nonce']) && wp_verify_nonce($_POST['custom_login_plugin_nonce'], 'custom_login_plugin_ajax')) {
+		// Retrieve the login credentials
+		$credentials = array(
+			'user_login' => isset($_POST['username']) ? sanitize_text_field($_POST['username']) : '',
+			'user_password' => isset($_POST['password']) ? sanitize_text_field($_POST['password']) : '',
+			'remember' => isset($_POST['remember']) ? sanitize_text_field($_POST['remember']) : ''
+		);
+
+		// Perform the login
+		$user = wp_signon($credentials, false);
+
+		// Check if the login was successful
+		if (is_wp_error($user)) {
+			$response = array(
+				'success' => false,
+				'message' => $user->get_error_message()
+			);
+		} else {
+			$response = array(
+				'success' => true,
+				'redirect_url' => wp_get_referer()
+			);
+		}
+
+		wp_send_json($response);
+	}
+
+	wp_send_json(array('success' => false, 'message' => 'Invalid request'));
+}
+add_action('wp_ajax_custom_login_plugin_ajax_login', 'custom_login_plugin_ajax_login');
+add_action('wp_ajax_nopriv_custom_login_plugin_ajax_login', 'custom_login_plugin_ajax_login');
 
 // Register the plugin options on activation
 function custom_login_plugin_activate()
